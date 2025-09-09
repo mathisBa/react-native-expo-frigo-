@@ -8,7 +8,7 @@ import {
   Alert,
   Image,
   SafeAreaView,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
   TextInput,
@@ -156,12 +156,10 @@ export default function ArticlesScreen() {
       </View>
 
       {/* Liste */}
-      <ScrollView
-        contentContainerStyle={s.listContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {visible.map((it) => (
-          <View key={it.id} style={s.card}>
+      <FlatList
+        data={visible}
+        renderItem={({ item: it }) => (
+          <View style={s.card}>
             <Image source={{ uri: PLACEHOLDER }} style={s.thumb} />
             <View style={s.cardBody}>
               <Text style={s.itemTitle}>{it.name}</Text>
@@ -185,14 +183,16 @@ export default function ArticlesScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        ))}
-
-        {visible.length === 0 && (
+        )}
+        keyExtractor={(it) => it.id}
+        contentContainerStyle={s.listContent}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
           <View style={{ padding: 24, alignItems: "center" }}>
             <Text style={{ color: "#6b7280" }}>Aucun article.</Text>
           </View>
-        )}
-      </ScrollView>
+        }
+      />
 
       {/* Picker sans valeur par défaut */}
       {showPicker && pickerDate && (
