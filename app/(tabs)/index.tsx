@@ -49,7 +49,6 @@ const INITIAL: Item[] = [
 ];
 
 function getExpColor(dateStr: string) {
-  // "Exp: 25/12/2024" → extraire "25/12/2024"
   const raw = dateStr.replace("Exp:", "").trim();
   const [day, month, year] = raw.split("/").map(Number);
   const expDate = new Date(year, month - 1, day);
