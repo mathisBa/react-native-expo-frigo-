@@ -1,7 +1,9 @@
 // ArticlesScreen.tsx
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Image,
@@ -46,17 +48,21 @@ export default function ArticlesScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pickerDate, setPickerDate] = useState<Date>(startOfDay(new Date()));
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        const list: Item[] = raw ? JSON.parse(raw) : [];
-        setItems(list);
-      } catch {
-        Alert.alert("Erreur", "Lecture impossible.");
-      }
-    })();
+  const load = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const list: Item[] = raw ? JSON.parse(raw) : [];
+      setItems(list);
+    } catch {
+      Alert.alert("Erreur", "Lecture impossible.");
+    }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const persist = useCallback(async (next: Item[]) => {
     try {

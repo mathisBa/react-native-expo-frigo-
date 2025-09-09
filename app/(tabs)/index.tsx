@@ -1,7 +1,9 @@
 // FridgeScreen.tsx
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import React, { useCallback, useState } from "react";
+
 import {
   Alert,
   Image,
@@ -60,17 +62,21 @@ export default function FridgeScreen() {
   const [items, setItems] = useState<Item[]>([]);
 
   // charge depuis AsyncStorage
-  useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        const list: Item[] = raw ? JSON.parse(raw) : [];
-        setItems(list);
-      } catch {
-        Alert.alert("Erreur", "Impossible de lire le frigo.");
-      }
-    })();
+  const load = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const list: Item[] = raw ? JSON.parse(raw) : [];
+      setItems(list);
+    } catch {
+      Alert.alert("Erreur", "Impossible de lire le frigo.");
+    }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const persist = useCallback(async (next: Item[]) => {
     try {
