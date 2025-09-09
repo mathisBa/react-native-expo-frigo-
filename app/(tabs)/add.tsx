@@ -43,10 +43,35 @@ export default function AddItemScreen() {
     if (!perm.granted && perm.canAskAgain) requestPermission();
   }, [perm, requestPermission]);
 
-  const onBarcode = useCallback(({ data }: { data: string }) => {
+  const onBarcode = useCallback(async ({ data }: { data: string }) => {
     if (!data) return;
     setBarcode(data);
     setScanning(false);
+
+    try {
+      const response = await fetch(
+        `https://world.openfoodfacts.org/api/v2/product/${data}`
+      );
+      if (!response.ok) {
+        throw new Error("Produit non trouvé");
+      }
+      const json = await response.json();
+      if (json.status !== 1 || !json.product) {
+        Alert.alert("Info", "Produit non trouvé dans la base de données Open Food Facts.");
+        return;
+      }
+
+      const { product } = json;
+      if (product.product_name_fr) {
+        setName(product.product_name_fr);
+      }
+      if (product.quantity) {
+        setAmount(product.quantity);
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Erreur", "Impossible de récupérer les informations du produit.");
+    }
   }, []);
 
   const save = useCallback(async () => {
