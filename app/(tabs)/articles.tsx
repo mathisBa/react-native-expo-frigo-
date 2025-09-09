@@ -14,6 +14,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Platform,
 } from "react-native";
 
 const STORAGE_KEY = "fridge_items";
@@ -47,9 +48,7 @@ export default function ArticlesScreen() {
   const [q, setQ] = useState("");
 
   // picker sans valeur par défaut
-  const [showPicker, setShowPicker] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [pickerDate, setPickerDate] = useState<Date | null>(null);
+  
 
   const load = useCallback(async () => {
     try {
@@ -75,34 +74,17 @@ export default function ArticlesScreen() {
     }
   }, []);
 
-  // ouvre le picker uniquement si une date existe et est valide
-  const openPicker = (it: Item) => {
-    if (!it.exp) return;
-    const parsed = parseISO(it.exp);
-    if (!parsed) return; // pas de date par défaut
-    setEditingId(it.id);
-    setPickerDate(parsed);
-    setShowPicker(true);
+  const handleDateChange = (id: string, newExp: string) => {
+    setItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, exp: newExp } : it))
+    );
   };
 
-  // applique la sélection et ferme
-  const onChangeDate = (_: any, selected?: Date) => {
-    setShowPicker(false);
-    if (!editingId || !selected) {
-      setEditingId(null);
-      setPickerDate(null);
-      return;
-    }
-    const picked = startOfDay(selected);
-    setItems((prev) => {
-      const next = prev.map((it) =>
-        it.id === editingId ? { ...it, exp: toISODate(picked) } : it
-      );
-      persist(next);
-      return next;
-    });
-    setEditingId(null);
-    setPickerDate(null);
+  const handleBlur = () => {
+    setItems(currentItems => {
+        persist(currentItems);
+        return currentItems;
+    })
   };
 
   const visible = useMemo(() => {
@@ -167,9 +149,13 @@ export default function ArticlesScreen() {
 
               <View style={s.expRow}>
                 <MaterialIcons name="event" size={16} color="#6b7280" />
-                <TouchableOpacity onPress={() => openPicker(it)}>
-                  <Text style={s.itemExp}>{it.exp || "—"}</Text>
-                </TouchableOpacity>
+                <TextInput
+                  style={s.itemExp}
+                  value={it.exp}
+                  placeholder="YYYY-MM-DD"
+                  onChangeText={(text) => handleDateChange(it.id, text)}
+                  onBlur={handleBlur}
+                />
               </View>
             </View>
 
@@ -194,14 +180,7 @@ export default function ArticlesScreen() {
         }
       />
 
-      {/* Picker sans valeur par défaut */}
-      {showPicker && pickerDate && (
-        <DateTimePicker
-          mode="date"
-          value={pickerDate}
-          onChange={onChangeDate}
-        />
-      )}
+      
     </SafeAreaView>
   );
 }
