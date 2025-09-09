@@ -1,39 +1,253 @@
-import { StyleSheet } from "react-native";
+// ArticlesScreen.tsx
+import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-import ParallaxScrollView from "@/components/ParallaxScrollView";
-import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
-import { IconSymbol } from "@/components/ui/IconSymbol";
+const STORAGE_KEY = "fridge_items";
+const PLACEHOLDER =
+  "https://cpng.pikpng.com/pngl/s/597-5973859_unknown-png-png-download-unknown-png-clipart.png";
 
-export default function TabThreeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: "#D0D0D0", dark: "#353636" }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
+type Item = {
+  id: string; // code-barres
+  name: string;
+  qty: number;
+  amount: string;
+  exp: string; // "YYYY-MM-DD"
+};
+
+const startOfDay = (d: Date) => {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+};
+const toISODate = (d: Date) => d.toISOString().split("T")[0];
+const parseISO = (s: string) => {
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? startOfDay(new Date()) : startOfDay(d);
+};
+
+export default function ArticlesScreen() {
+  const [items, setItems] = useState<Item[]>([]);
+  const [q, setQ] = useState("");
+
+  // même pattern que la page Scan
+  const [showPicker, setShowPicker] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [pickerDate, setPickerDate] = useState<Date>(startOfDay(new Date()));
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const list: Item[] = raw ? JSON.parse(raw) : [];
+        setItems(list);
+      } catch {
+        Alert.alert("Erreur", "Lecture impossible.");
       }
-    >
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Visit</ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    })();
+  }, []);
+
+  const persist = useCallback(async (next: Item[]) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      Alert.alert("Erreur", "Sauvegarde impossible.");
+    }
+  }, []);
+
+  // même logique que Scan: on ferme et on prend la date sélectionnée
+  const onChangeDate = (_: any, selected?: Date) => {
+    setShowPicker(false);
+    if (!editingId || !selected) {
+      setEditingId(null);
+      return;
+    }
+    const picked = startOfDay(selected);
+    setItems((prev) => {
+      const next = prev.map((it) =>
+        it.id === editingId ? { ...it, exp: toISODate(picked) } : it
+      );
+      persist(next);
+      return next;
+    });
+    setEditingId(null);
+  };
+
+  const visible = useMemo(() => {
+    const match = (it: Item) =>
+      it.name.toLowerCase().includes(q.trim().toLowerCase());
+    return [...items].filter(match).sort((a, b) => b.qty - a.qty); // affiche aussi qty=0
+  }, [items, q]);
+
+  const inc = (id: string) => {
+    setItems((prev) => {
+      const next = prev.map((it) =>
+        it.id === id ? { ...it, qty: it.qty + 1 } : it
+      );
+      persist(next);
+      return next;
+    });
+  };
+  const dec = (id: string) => {
+    setItems((prev) => {
+      const next = prev.map((it) =>
+        it.id === id ? { ...it, qty: Math.max(0, it.qty - 1) } : it
+      );
+      persist(next);
+      return next;
+    });
+  };
+
+  return (
+    <SafeAreaView style={s.safe}>
+      {/* Header */}
+      <View style={s.header}>
+        <Text style={s.headerTitle}>Articles</Text>
+      </View>
+
+      {/* Recherche */}
+      <View style={s.searchWrap}>
+        <MaterialIcons name="search" size={20} color="#6b7280" />
+        <TextInput
+          style={s.search}
+          placeholder="Rechercher par nom"
+          value={q}
+          onChangeText={setQ}
+          autoCorrect={false}
+        />
+        {q.length > 0 && (
+          <TouchableOpacity onPress={() => setQ("")}>
+            <MaterialIcons name="close" size={18} color="#6b7280" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Liste */}
+      <ScrollView
+        contentContainerStyle={s.listContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {visible.map((it) => (
+          <View key={it.id} style={s.card}>
+            <Image source={{ uri: PLACEHOLDER }} style={s.thumb} />
+            <View style={s.cardBody}>
+              <Text style={s.itemTitle}>{it.name}</Text>
+              <Text style={s.itemSub}>{it.amount}</Text>
+
+              <View style={s.expRow}>
+                <MaterialIcons name="event" size={16} color="#6b7280" />
+                <Text style={s.itemExp}>{it.exp || "—"}</Text>
+              </View>
+            </View>
+
+            <View style={s.qtyWrap}>
+              <TouchableOpacity style={s.qtyBtn} onPress={() => dec(it.id)}>
+                <Text style={s.qtyBtnText}>-</Text>
+              </TouchableOpacity>
+              <Text style={s.qtyText}>{it.qty}</Text>
+              <TouchableOpacity style={s.qtyBtn} onPress={() => inc(it.id)}>
+                <Text style={s.qtyBtnText}>+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+
+        {visible.length === 0 && (
+          <View style={{ padding: 24, alignItems: "center" }}>
+            <Text style={{ color: "#6b7280" }}>Aucun article.</Text>
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  headerImage: {
-    color: "#808080",
-    bottom: -90,
-    left: -35,
-    position: "absolute",
+const BG = "#f0f2f5";
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: BG },
+  header: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
-  titleContainer: {
+  headerTitle: {
+    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1f2937",
+  },
+
+  searchWrap: {
+    margin: 16,
     flexDirection: "row",
+    alignItems: "center",
     gap: 8,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#e5e7eb",
   },
+  search: { flex: 1 },
+
+  listContent: { paddingHorizontal: 16, paddingBottom: 24, rowGap: 12 },
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    padding: 12,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  thumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    backgroundColor: "#e5e7eb",
+  },
+  cardBody: { flex: 1, marginLeft: 12 },
+  itemTitle: { color: "#1f2937", fontSize: 16, fontWeight: "600" },
+  itemSub: { color: "#6b7280", fontSize: 13, marginTop: 2 },
+  expRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
+  itemExp: { color: "#374151", fontSize: 13, fontWeight: "600" },
+  editBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  editTxt: { color: "#2563eb", fontSize: 12, fontWeight: "700" },
+
+  qtyWrap: { flexDirection: "row", alignItems: "center" },
+  qtyBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#f3f4f6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qtyBtnText: { fontSize: 18, fontWeight: "700", color: "#1f2937" },
+  qtyText: { width: 24, textAlign: "center", fontSize: 16, fontWeight: "700" },
 });

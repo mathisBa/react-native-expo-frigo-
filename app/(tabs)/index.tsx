@@ -1,7 +1,9 @@
 // FridgeScreen.tsx
 import { MaterialIcons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  Alert,
   Image,
   Platform,
   SafeAreaView,
@@ -12,72 +14,96 @@ import {
   View,
 } from "react-native";
 
+const STORAGE_KEY = "fridge_items";
+const PLACEHOLDER =
+  "https://cpng.pikpng.com/pngl/s/597-5973859_unknown-png-png-download-unknown-png-clipart.png";
+
 type Item = {
-  id: string;
+  id: string; // code-barres
   name: string;
   qty: number;
   amount: string;
-  exp: string;
-  img: string;
+  exp: string; // "YYYY-MM-DD" (AddItem) ou "Exp: dd/MM/yyyy" (ancien)
 };
 
-const INITIAL: Item[] = [
-  {
-    id: "1",
-    name: "Tomates",
-    qty: 1,
-    amount: "500g",
-    exp: "Exp: 25/12/2025",
-    img: "https://lh3.googleusercontent.com/aida-public/AB6AXuBeaKWlQ8WTn7n-yd0Qh59WoM2xF-RVW19One1SwhsPFpDAUcbv_vZ-xyDzCb96p2899BarZJVLARvg14nuMnU5LIZBOse09_zr2oWH2aLr2ZVG1FUmEOCIzzhfqfojkindxApnyppSTdcMzuDlL4pNgOw1oRewFvvto2Q8LBLMZi2ZCAMHqDkpbg1HuYGHMi1l9EwhMwlQly70t1L71o8H_CedXme5PeBLUmkNErrXfqFAk3V2fsvNh3Jea8aWbsB4fRyEkRdf45WK",
-  },
-  {
-    id: "2",
-    name: "Carottes",
-    qty: 1,
-    amount: "200g",
-    exp: "Exp: 20/12/2026",
-    img: "https://lh3.googleusercontent.com/aida-public/AB6AXuB02WU6VofsxVuUM0BuIKHVGEKc1lCDsGyfBe7l6DFNUqgMML7LKY7oOUti6XKVg9AmruMPb4HFgyvuuonKSual0SiEflhqkGim0yG88BL1NQCLI8ay0__eLn5Jz2ZNce-CiatsiQYQ4u0qd9lQy0Ecgjf0Z2pFSaBwslnHbYfApqeV8zIyMq-b6TWk21OSe3Py3Wqaaj4Pxg1tz_XfWFHKZo4JGNHR2btPzGbQ4NWQlko9AUWsNaMwuv8fIstg8OBnihTmmwRBGya_",
-  },
-  {
-    id: "3",
-    name: "Lait",
-    qty: 1,
-    amount: "1L",
-    exp: "Exp: 15/12/2024",
-    img: "https://lh3.googleusercontent.com/aida-public/AB6AXuCxgIVPps-rWx93J_7OR1DNYIkdNP2iQ1x6VGnGxhlEJWgH7cZxe4mPl1OFQb6NhHDVNG6qZzbLtu6pcWRTtCtiZoSzkjh7y-8iHsvAuHU90dalTYV2bvEju9Rpz__f9V2XyjB4eI3P7NUR9ko8cKiUtdHYuzIk-ihVExGeF66yChmzE6Y9bibDRmeXi5P5Y3R5B6byUqaEkT7vQha996idhhaxQ0BvUQBhMjKVk_3at_96Jyd70lSODcmRI-lpbEJch0yuYxKqCBrm",
-  },
-];
-
-function getExpColor(dateStr: string) {
+function parseExp(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  if (dateStr.includes("-")) {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+  }
+  // format "Exp: dd/MM/yyyy"
   const raw = dateStr.replace("Exp:", "").trim();
   const [day, month, year] = raw.split("/").map(Number);
-  const expDate = new Date(year, month - 1, day);
+  if (!day || !month || !year) return null;
+  const d = new Date(year, month - 1, day);
+  if (isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
+function getExpColor(dateStr: string) {
+  const expDate = parseExp(dateStr);
+  if (!expDate) return "#6b7280";
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
-  const diffDays = Math.floor(
-    (expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-  );
-
-  if (diffDays < 0) return "#dc2626"; // rouge, déjà expiré
-  if (diffDays <= 3) return "#ca8a04"; // orange, <= 3 jours restants
-  return "#16a34a"; // vert, > 3 jours
+  const diffDays = Math.floor((expDate.getTime() - today.getTime()) / 86400000);
+  if (diffDays < 0) return "#dc2626"; // rouge
+  if (diffDays <= 3) return "#ca8a04"; // orange
+  return "#16a34a"; // vert
 }
 
 export default function FridgeScreen() {
-  const [items, setItems] = useState(INITIAL);
+  const [items, setItems] = useState<Item[]>([]);
 
-  const inc = (id: string) =>
-    setItems((p) =>
-      p.map((it) => (it.id === id ? { ...it, qty: it.qty + 1 } : it))
-    );
-  const dec = (id: string) =>
-    setItems((p) =>
-      p.map((it) =>
+  // charge depuis AsyncStorage
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const list: Item[] = raw ? JSON.parse(raw) : [];
+        setItems(list);
+      } catch {
+        Alert.alert("Erreur", "Impossible de lire le frigo.");
+      }
+    })();
+  }, []);
+
+  const persist = useCallback(async (next: Item[]) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      Alert.alert("Erreur", "Impossible d’enregistrer les modifications.");
+    }
+  }, []);
+
+  const inc = (id: string) => {
+    setItems((prev) => {
+      const next = prev.map((it) =>
+        it.id === id ? { ...it, qty: it.qty + 1 } : it
+      );
+      persist(next);
+      return next;
+    });
+  };
+
+  const dec = (id: string) => {
+    setItems((prev) => {
+      const next = prev.map((it) =>
         it.id === id ? { ...it, qty: Math.max(0, it.qty - 1) } : it
-      )
-    );
+      );
+      persist(next);
+      return next;
+    });
+  };
+
+  // projection triée et filtrée
+  const visible = [...items]
+    .filter((it) => it.qty > 0)
+    .sort((a, b) => b.qty - a.qty);
 
   return (
     <SafeAreaView style={s.safe}>
@@ -88,7 +114,7 @@ export default function FridgeScreen() {
         <TouchableOpacity
           style={s.iconBtn}
           onPress={() => {
-            /* add action */
+            /* action */
           }}
         >
           <MaterialIcons name="add" size={22} color="#4b5563" />
@@ -100,9 +126,9 @@ export default function FridgeScreen() {
         contentContainerStyle={s.listContent}
         showsVerticalScrollIndicator={false}
       >
-        {items.map((it) => (
+        {visible.map((it) => (
           <View key={it.id} style={s.card}>
-            <Image source={{ uri: it.img }} style={s.thumb} />
+            <Image source={{ uri: PLACEHOLDER }} style={s.thumb} />
             <View style={s.cardBody}>
               <Text style={s.itemTitle}>{it.name}</Text>
               <Text style={s.itemSub}>{it.amount}</Text>
@@ -121,6 +147,12 @@ export default function FridgeScreen() {
             </View>
           </View>
         ))}
+
+        {visible.length === 0 && (
+          <View style={{ padding: 24, alignItems: "center" }}>
+            <Text style={{ color: "#6b7280" }}>Aucun article à afficher.</Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* Boutons flottants */}
