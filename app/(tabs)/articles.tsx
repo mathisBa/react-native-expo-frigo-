@@ -1,13 +1,12 @@
 // ArticlesScreen.tsx
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Image,
-  SafeAreaView,
   FlatList,
   StyleSheet,
   Text,
@@ -44,6 +43,7 @@ const parseISO = (s: string): Date | null => {
 };
 
 export default function ArticlesScreen() {
+  const insets = useSafeAreaInsets();
   const [items, setItems] = useState<Item[]>([]);
   const [q, setQ] = useState("");
 
@@ -114,7 +114,12 @@ export default function ArticlesScreen() {
   };
 
   return (
-    <SafeAreaView style={s.safe}>
+    <View
+      style={[
+        s.safe,
+        { paddingTop: insets.top, paddingBottom: insets.bottom },
+      ]}
+    >
       {/* Header */}
       <View style={s.header}>
         <Text style={s.headerTitle}>Articles</Text>
@@ -181,7 +186,7 @@ export default function ArticlesScreen() {
       />
 
       
-    </SafeAreaView>
+    </View>
   );
 }
 
