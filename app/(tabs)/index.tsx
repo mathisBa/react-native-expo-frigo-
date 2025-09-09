@@ -2,6 +2,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import { useRouter } from "expo-router";
+const router = useRouter();
+
 import React, { useCallback, useState } from "react";
 
 import {
@@ -167,14 +170,16 @@ export default function FridgeScreen() {
           style={[s.fab, s.fabGray]}
           onPress={() => {
             /* panier */
+            router.push("/articles");
           }}
         >
           <MaterialIcons name="add-shopping-cart" size={24} color="#1f2937" />
         </TouchableOpacity>
+
         <TouchableOpacity
           style={[s.fab, s.fabGreen]}
           onPress={() => {
-            /* scanner */
+            router.push("/add");
           }}
         >
           <MaterialIcons name="qr-code-scanner" size={24} color="#fff" />
