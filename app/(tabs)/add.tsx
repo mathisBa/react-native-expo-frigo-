@@ -106,39 +106,40 @@ export default function AddItemScreen() {
 
       <View style={s.container}>
         {/* Scanner ou placeholder */}
-        <View style={s.scannerBox}>
-          {showScanner ? (
-            <CameraView
-              style={s.camera}
-              facing="back"
-              barcodeScannerSettings={{
-                barcodeTypes: [
-                  "ean13",
-                  "ean8",
-                  "upc_a",
-                  "upc_e",
-                  "code128",
-                  "qr",
-                ],
-              }}
-              onBarcodeScanned={(res) => onBarcode({ data: res.data })}
-            />
-          ) : (
-            <View style={s.cameraPlaceholder}>
-              <Text style={s.cameraText}>
-                {perm?.granted
-                  ? "Touchez l’icône pour activer le scan."
-                  : "Caméra non autorisée. Saisissez le code-barres ci-dessous."}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Formulaire */}
         <ScrollView
           contentContainerStyle={s.form}
           keyboardShouldPersistTaps="handled"
         >
+          <View style={s.scannerBox}>
+            {showScanner ? (
+              <CameraView
+                style={s.camera}
+                facing="back"
+                barcodeScannerSettings={{
+                  barcodeTypes: [
+                    "ean13",
+                    "ean8",
+                    "upc_a",
+                    "upc_e",
+                    "code128",
+                    "qr",
+                  ],
+                }}
+                onBarcodeScanned={(res) => onBarcode({ data: res.data })}
+              />
+            ) : (
+              <View style={s.cameraPlaceholder}>
+                <Text style={s.cameraText}>
+                  {perm?.granted
+                    ? "Touchez l’icône pour activer le scan."
+                    : "Caméra non autorisée. Saisissez le code-barres ci-dessous."}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Formulaire */}
+
           <Field label="Nom de l’article">
             <TextInput
               style={s.input}
@@ -309,7 +310,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 24,
   },
 
-  form: { paddingHorizontal: 16, paddingBottom: 24 },
+  form: { paddingHorizontal: 16, paddingBottom: 60 },
   label: { color: "#cbd5e1", fontSize: 13, marginBottom: 6 },
   input: {
     backgroundColor: "#fff",
