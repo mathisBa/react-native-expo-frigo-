@@ -1,8 +1,8 @@
 // ArticlesScreen.tsx
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useFocusEffect } from "@react-navigation/native";
-
 import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
@@ -34,19 +34,22 @@ const startOfDay = (d: Date) => {
   return x;
 };
 const toISODate = (d: Date) => d.toISOString().split("T")[0];
-const parseISO = (s: string) => {
+
+// -> retourne null si date invalide (pas de valeur par défaut)
+const parseISO = (s: string): Date | null => {
   const d = new Date(s);
-  return isNaN(d.getTime()) ? startOfDay(new Date()) : startOfDay(d);
+  if (isNaN(d.getTime())) return null;
+  return startOfDay(d);
 };
 
 export default function ArticlesScreen() {
   const [items, setItems] = useState<Item[]>([]);
   const [q, setQ] = useState("");
 
-  // même pattern que la page Scan
+  // picker sans valeur par défaut
   const [showPicker, setShowPicker] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [pickerDate, setPickerDate] = useState<Date>(startOfDay(new Date()));
+  const [pickerDate, setPickerDate] = useState<Date | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -72,11 +75,22 @@ export default function ArticlesScreen() {
     }
   }, []);
 
-  // même logique que Scan: on ferme et on prend la date sélectionnée
+  // ouvre le picker uniquement si une date existe et est valide
+  const openPicker = (it: Item) => {
+    if (!it.exp) return;
+    const parsed = parseISO(it.exp);
+    if (!parsed) return; // pas de date par défaut
+    setEditingId(it.id);
+    setPickerDate(parsed);
+    setShowPicker(true);
+  };
+
+  // applique la sélection et ferme
   const onChangeDate = (_: any, selected?: Date) => {
     setShowPicker(false);
     if (!editingId || !selected) {
       setEditingId(null);
+      setPickerDate(null);
       return;
     }
     const picked = startOfDay(selected);
@@ -88,12 +102,13 @@ export default function ArticlesScreen() {
       return next;
     });
     setEditingId(null);
+    setPickerDate(null);
   };
 
   const visible = useMemo(() => {
     const match = (it: Item) =>
       it.name.toLowerCase().includes(q.trim().toLowerCase());
-    return [...items].filter(match).sort((a, b) => b.qty - a.qty); // affiche aussi qty=0
+    return [...items].filter(match).sort((a, b) => b.qty - a.qty); // garde qty=0
   }, [items, q]);
 
   const inc = (id: string) => {
@@ -105,6 +120,7 @@ export default function ArticlesScreen() {
       return next;
     });
   };
+
   const dec = (id: string) => {
     setItems((prev) => {
       const next = prev.map((it) =>
@@ -153,7 +169,9 @@ export default function ArticlesScreen() {
 
               <View style={s.expRow}>
                 <MaterialIcons name="event" size={16} color="#6b7280" />
-                <Text style={s.itemExp}>{it.exp || "—"}</Text>
+                <TouchableOpacity onPress={() => openPicker(it)}>
+                  <Text style={s.itemExp}>{it.exp || "—"}</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -175,6 +193,15 @@ export default function ArticlesScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Picker sans valeur par défaut */}
+      {showPicker && pickerDate && (
+        <DateTimePicker
+          mode="date"
+          value={pickerDate}
+          onChange={onChangeDate}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -235,15 +262,6 @@ const s = StyleSheet.create({
   itemSub: { color: "#6b7280", fontSize: 13, marginTop: 2 },
   expRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
   itemExp: { color: "#374151", fontSize: 13, fontWeight: "600" },
-  editBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginLeft: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  editTxt: { color: "#2563eb", fontSize: 12, fontWeight: "700" },
 
   qtyWrap: { flexDirection: "row", alignItems: "center" },
   qtyBtn: {
