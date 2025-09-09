@@ -1,6 +1,7 @@
 // AddItemScreen.tsx
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -16,10 +17,10 @@ import {
 } from "react-native";
 
 type Item = {
-  id: string; // = code barre
+  id: string; // code-barres
   name: string;
   qty: number;
-  amount: string;
+  amount: string; // "500g", "1L", etc.
   exp: string; // "YYYY-MM-DD"
 };
 
@@ -28,14 +29,16 @@ const STORAGE_KEY = "fridge_items";
 export default function AddItemScreen() {
   const [perm, requestPermission] = useCameraPermissions();
   const [scanning, setScanning] = useState(true);
+
   const [barcode, setBarcode] = useState("");
   const [name, setName] = useState("");
   const [qty, setQty] = useState("1");
   const [amount, setAmount] = useState("");
-  const [exp, setExp] = useState("");
+
+  const [expDate, setExpDate] = useState<Date | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
 
   useEffect(() => {
-    // si pas encore demandé, on ne bloque pas l'UI
     if (!perm) return;
     if (!perm.granted && perm.canAskAgain) requestPermission();
   }, [perm, requestPermission]);
@@ -50,8 +53,8 @@ export default function AddItemScreen() {
     const q = parseInt(qty, 10);
     if (
       !name.trim() ||
-      !exp.trim() ||
       !barcode.trim() ||
+      !expDate ||
       Number.isNaN(q) ||
       q < 1
     ) {
@@ -59,33 +62,31 @@ export default function AddItemScreen() {
       return;
     }
     const newItem: Item = {
-      id: barcode.trim(), // id = code barre
+      id: barcode.trim(),
       name: name.trim(),
       qty: q,
       amount: amount.trim(),
-      exp: exp.trim(),
+      exp: toISODate(expDate),
     };
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      let list: Item[] = raw ? JSON.parse(raw) : [];
-      // si l'article existe déjà, on le remplace
+      const list: Item[] = raw ? JSON.parse(raw) : [];
       const idx = list.findIndex((it) => it.id === newItem.id);
       if (idx >= 0) list[idx] = newItem;
       else list.push(newItem);
-
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-      Alert.alert("Ajouté", "Article enregistré dans le frigo.");
+      Alert.alert("Ajouté", "Article enregistré.");
       // reset
       setName("");
       setQty("1");
       setAmount("");
-      setExp("");
       setBarcode("");
+      setExpDate(null);
       setScanning(perm?.granted ?? false);
-    } catch (e) {
+    } catch {
       Alert.alert("Erreur", "Impossible d’enregistrer l’article.");
     }
-  }, [name, qty, amount, exp, barcode, perm]);
+  }, [name, qty, amount, barcode, expDate, perm]);
 
   const showScanner = (perm?.granted ?? false) && scanning;
 
@@ -94,17 +95,17 @@ export default function AddItemScreen() {
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity
-          onPress={() => setScanning((v) => !v)}
+          onPress={() => setScanning((v) => (perm?.granted ? !v : v))}
           style={s.iconBtn}
         >
           <MaterialIcons name="qr-code-scanner" size={22} color="#fff" />
         </TouchableOpacity>
-        <Text style={s.title}>Scanner un article</Text>
+        <Text style={s.title}>Ajouter un article</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <View style={s.container}>
-        {/* Zone caméra ou placeholder + saisie code-barres */}
+        {/* Scanner ou placeholder */}
         <View style={s.scannerBox}>
           {showScanner ? (
             <CameraView
@@ -126,8 +127,8 @@ export default function AddItemScreen() {
             <View style={s.cameraPlaceholder}>
               <Text style={s.cameraText}>
                 {perm?.granted
-                  ? "Appuyez sur l’icône pour relancer le scan."
-                  : "Autorisation caméra refusée. Saisissez le code-barres à la main."}
+                  ? "Touchez l’icône pour activer le scan."
+                  : "Caméra non autorisée. Saisissez le code-barres ci-dessous."}
               </Text>
             </View>
           )}
@@ -138,70 +139,59 @@ export default function AddItemScreen() {
           contentContainerStyle={s.form}
           keyboardShouldPersistTaps="handled"
         >
-          <L label="Nom de l’article">
+          <Field label="Nom de l’article">
             <TextInput
               style={s.input}
               placeholder="Ex: Lait d’amande"
               value={name}
               onChangeText={setName}
             />
-          </L>
+          </Field>
 
-          <L label="Quantité">
+          <Field label="Quantité">
             <View style={s.qtyRow}>
-              <TouchableOpacity
-                style={[
-                  s.stepBtn,
-                  { borderTopLeftRadius: 8, borderBottomLeftRadius: 8 },
-                ]}
-                onPress={() =>
-                  setQty(
-                    String(Math.max(1, (parseInt(qty || "1", 10) || 1) - 1))
-                  )
-                }
-              >
-                <Text style={s.stepTxt}>-</Text>
-              </TouchableOpacity>
+              <Step onPress={() => setQty(String(Math.max(1, toInt(qty) - 1)))}>
+                -
+              </Step>
               <TextInput
                 style={[s.input, s.qtyInput]}
                 keyboardType="number-pad"
                 value={qty}
                 onChangeText={setQty}
               />
-              <TouchableOpacity
-                style={[
-                  s.stepBtn,
-                  { borderTopRightRadius: 8, borderBottomRightRadius: 8 },
-                ]}
-                onPress={() =>
-                  setQty(String((parseInt(qty || "1", 10) || 1) + 1))
-                }
-              >
-                <Text style={s.stepTxt}>+</Text>
-              </TouchableOpacity>
+              <Step onPress={() => setQty(String(toInt(qty) + 1))}>+</Step>
             </View>
-          </L>
+          </Field>
 
-          <L label="Quantité (ex: 1L, 500g)">
+          <Field label="Quantité (ex: 1L, 500g)">
             <TextInput
               style={s.input}
               placeholder="Ex: 1L"
               value={amount}
               onChangeText={setAmount}
             />
-          </L>
+          </Field>
 
-          <L label="Date de péremption">
-            <TextInput
+          <Field label="Date de péremption">
+            <TouchableOpacity
+              onPress={() => setShowPicker(true)}
               style={s.input}
-              placeholder="YYYY-MM-DD"
-              value={exp}
-              onChangeText={setExp}
-              inputMode="numeric"
-            />
-          </L>
+            >
+              <Text>{expDate ? toISODate(expDate) : "Choisir une date"}</Text>
+            </TouchableOpacity>
+            {showPicker && (
+              <DateTimePicker
+                mode="date"
+                value={expDate ?? new Date()}
+                onChange={(e, d) => {
+                  setShowPicker(false);
+                  if (d) setExpDate(startOfDay(d));
+                }}
+              />
+            )}
+          </Field>
 
-          <L label="Code-barres">
+          <Field label="Code-barres">
             <TextInput
               style={s.input}
               placeholder="Scannez ou saisissez"
@@ -212,10 +202,10 @@ export default function AddItemScreen() {
               {perm?.granted
                 ? scanning
                   ? "Scanner actif."
-                  : "Scanner inactif. Touchez l’icône pour rescanner."
-                : "Caméra non autorisée. Saisie manuelle requise."}
+                  : "Scanner inactif."
+                : "Autorisation refusée. Saisie manuelle requise."}
             </Text>
-          </L>
+          </Field>
 
           <TouchableOpacity style={s.submit} onPress={save}>
             <Text style={s.submitTxt}>Ajouter au frigo</Text>
@@ -226,7 +216,14 @@ export default function AddItemScreen() {
   );
 }
 
-function L({ label, children }: { label: string; children: React.ReactNode }) {
+/* Helpers UI */
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <View style={{ marginBottom: 14 }}>
       <Text style={s.label}>{label}</Text>
@@ -234,9 +231,36 @@ function L({ label, children }: { label: string; children: React.ReactNode }) {
     </View>
   );
 }
+function Step({
+  onPress,
+  children,
+}: {
+  onPress: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <TouchableOpacity style={s.stepBtn} onPress={onPress}>
+      <Text style={s.stepTxt}>{children}</Text>
+    </TouchableOpacity>
+  );
+}
 
+/* Helpers date + parse */
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function toISODate(d: Date) {
+  return d.toISOString().split("T")[0];
+}
+function toInt(v: string) {
+  const n = parseInt(v || "1", 10);
+  return Number.isNaN(n) ? 1 : n;
+}
+
+/* Styles */
 const BG = "#0b0f14";
-
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: BG },
   header: {
@@ -298,9 +322,10 @@ const s = StyleSheet.create({
   qtyRow: { flexDirection: "row", alignItems: "center" },
   qtyInput: {
     textAlign: "center",
-    width: 80,
-    borderRadius: 0,
+    width: 90,
+    borderRadius: 10,
     marginHorizontal: 0,
+    marginVertical: 0,
   },
   stepBtn: {
     backgroundColor: "#f3f4f6",
@@ -308,6 +333,8 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#e5e7eb",
+    borderRadius: 8,
+    marginHorizontal: 6,
   },
   stepTxt: { fontSize: 18, fontWeight: "700", color: "#1f2937" },
 
