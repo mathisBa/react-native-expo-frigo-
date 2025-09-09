@@ -37,20 +37,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="add"
         options={{
-          title: "Ingrédients",
+          title: "Ajouter",
           tabBarIcon: ({ color }) => (
-            <MaterialIcons name="menu" size={24} color={color} />
+            <MaterialIcons name="add-circle-outline" size={24} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="visit"
+        name="articles"
         options={{
-          title: "Visiter",
+          title: "Articles",
           tabBarIcon: ({ color }) => (
-            <MaterialIcons name="key" size={24} color={color} />
+            <MaterialIcons name="menu" size={24} color={color} />
           ),
         }}
       />
