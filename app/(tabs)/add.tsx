@@ -22,6 +22,7 @@ type Item = {
   qty: number;
   amount: string; // "500g", "1L", etc.
   exp: string; // "YYYY-MM-DD"
+  imageUrl?: string;
 };
 
 const STORAGE_KEY = "fridge_items";
@@ -34,6 +35,7 @@ export default function AddItemScreen() {
   const [name, setName] = useState("");
   const [qty, setQty] = useState("1");
   const [amount, setAmount] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | undefined>();
 
   const [expDate, setExpDate] = useState<Date | null>(null);
   const [showPicker, setShowPicker] = useState(false);
@@ -68,6 +70,9 @@ export default function AddItemScreen() {
       if (product.quantity) {
         setAmount(product.quantity);
       }
+      if (product.image_url) {
+        setImageUrl(product.image_url);
+      }
     } catch (error) {
       console.error(error);
       Alert.alert("Erreur", "Impossible de récupérer les informations du produit.");
@@ -92,6 +97,7 @@ export default function AddItemScreen() {
       qty: q,
       amount: amount.trim(),
       exp: toISODate(expDate),
+      imageUrl,
     };
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
@@ -107,6 +113,7 @@ export default function AddItemScreen() {
       setAmount("");
       setBarcode("");
       setExpDate(null);
+      setImageUrl(undefined);
       setScanning(perm?.granted ?? false);
     } catch {
       Alert.alert("Erreur", "Impossible d’enregistrer l’article.");

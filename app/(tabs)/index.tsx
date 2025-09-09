@@ -29,6 +29,7 @@ type Item = {
   qty: number;
   amount: string;
   exp: string; // "YYYY-MM-DD" (AddItem) ou "Exp: dd/MM/yyyy" (ancien)
+  imageUrl?: string;
 };
 
 function parseExp(dateStr: string): Date | null {
@@ -135,7 +136,7 @@ export default function FridgeScreen() {
         data={visible}
         renderItem={({ item: it }) => (
           <View style={s.card}>
-            <Image source={{ uri: PLACEHOLDER }} style={s.thumb} />
+            <Image source={{ uri: it.imageUrl || PLACEHOLDER }} style={s.thumb} />
             <View style={s.cardBody}>
               <Text style={s.itemTitle}>{it.name}</Text>
               <Text style={s.itemSub}>{it.amount}</Text>

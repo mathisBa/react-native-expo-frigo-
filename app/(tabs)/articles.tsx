@@ -25,7 +25,8 @@ type Item = {
   name: string;
   qty: number;
   amount: string;
-  exp: string; // "YYYY-MM-DD"
+  exp: string; // "YYYY-MM-DD",
+  imageUrl?: string;
 };
 
 const startOfDay = (d: Date) => {
@@ -147,7 +148,7 @@ export default function ArticlesScreen() {
         data={visible}
         renderItem={({ item: it }) => (
           <View style={s.card}>
-            <Image source={{ uri: PLACEHOLDER }} style={s.thumb} />
+            <Image source={{ uri: it.imageUrl || PLACEHOLDER }} style={s.thumb} />
             <View style={s.cardBody}>
               <Text style={s.itemTitle}>{it.name}</Text>
               <Text style={s.itemSub}>{it.amount}</Text>
